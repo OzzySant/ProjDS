@@ -4,8 +4,10 @@ import Sidebar from './components/Sidebar';
 import BibleModule from './components/modules/BibleModule';
 import HymnalModule from './components/modules/HymnalModule';
 import SettingsModule from './components/modules/SettingsModule';
+import MediaModule from './components/modules/MediaModule';
 import LivePreview from './components/LivePreview';
-import { Smartphone, RotateCcw } from 'lucide-react';
+import ProjectorView from './components/ProjectorView';
+import { RotateCcw } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
   const [currentModule, setCurrentModule] = useState<'bible' | 'hymn' | 'media' | 'settings'>('bible');
@@ -27,9 +29,9 @@ const MainLayout: React.FC = () => {
         <div className="bg-gray-800 p-6 rounded-full mb-6 animate-pulse">
             <RotateCcw size={48} className="text-blue-500" />
         </div>
-        <h1 className="text-2xl font-bold mb-2">Por favor, gire seu dispositivo</h1>
-        <p className="text-gray-400 max-w-xs">
-          O Mobile Church Presenter foi desenhado para modo Paisagem (Landscape) para simular o ambiente de projeção.
+        <h1 className="text-2xl font-bold mb-2">Gire seu dispositivo</h1>
+        <p className="text-gray-400 max-w-xs text-sm">
+          Este app foi otimizado para uso em Paisagem (Landscape) para controlar a projeção.
         </p>
       </div>
     );
@@ -44,29 +46,24 @@ const MainLayout: React.FC = () => {
       case 'settings':
         return <SettingsModule />;
       case 'media':
-        return (
-            <div className="flex flex-col items-center justify-center h-full text-gray-500 bg-gray-800">
-                <Smartphone size={48} className="mb-4 opacity-50"/>
-                <p>Módulo de Mídia em breve</p>
-            </div>
-        );
+        return <MediaModule />;
       default:
         return <BibleModule />;
     }
   };
 
   return (
-    <div className="flex h-screen w-screen bg-black overflow-hidden select-none">
-      {/* 1. Sidebar (Navigation) */}
+    <div className="flex h-screen w-screen bg-black overflow-hidden select-none text-sm md:text-base">
+      {/* 1. Sidebar (Navigation) - Fixed width defined in component */}
       <Sidebar currentModule={currentModule} onModuleChange={setCurrentModule} />
 
-      {/* 2. Main Control Area (Center) */}
-      <main className="flex-1 min-w-0 bg-gray-800 border-r border-gray-900 relative">
+      {/* 2. Main Control Area (Center) - Takes remaining space */}
+      <main className="flex-1 min-w-0 bg-gray-800 border-r border-gray-900 relative flex flex-col">
         {renderModule()}
       </main>
 
-      {/* 3. Live View (Right - Fixed Width for Desktop feel) */}
-      <aside className="w-[400px] bg-gray-950 flex-shrink-0 z-10 shadow-2xl">
+      {/* 3. Live Preview (Right) - Responsive Width */}
+      <aside className="w-[35%] max-w-[400px] min-w-[240px] bg-gray-950 flex-shrink-0 z-10 shadow-2xl flex flex-col border-l border-gray-900">
         <LivePreview />
       </aside>
     </div>
@@ -74,6 +71,20 @@ const MainLayout: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  // Simple "Routing" Check
+  const [isProjectorView, setIsProjectorView] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'projector') {
+        setIsProjectorView(true);
+    }
+  }, []);
+
+  if (isProjectorView) {
+      return <ProjectorView />;
+  }
+
   return (
     <ProjectionProvider>
       <MainLayout />

@@ -1,5 +1,10 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { ProjectionContent, ProjectionType } from '../types';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { ProjectionContent, ProjectionType, BroadcastMessage } from '../types';
+
+interface NavigationHandlers {
+  onNext?: () => void;
+  onPrev?: () => void;
+}
 
 interface ProjectionContextType {
   currentProjection: ProjectionContent;
@@ -11,6 +16,12 @@ interface ProjectionContextType {
     bgImage: string | null;
   };
   updateSettings: (newSettings: Partial<ProjectionContextType['settings']>) => void;
+  
+  // Novos controles de navegação e blackout
+  isBlackout: boolean;
+  toggleBlackout: (value?: boolean) => void;
+  navigationHandlers: NavigationHandlers;
+  setNavigationHandlers: (handlers: NavigationHandlers) => void;
 }
 
 const defaultProjection: ProjectionContent = {
@@ -22,26 +33,108 @@ const ProjectionContext = createContext<ProjectionContextType | undefined>(undef
 
 export const ProjectionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentProjection, setCurrentProjection] = useState<ProjectionContent>(defaultProjection);
+  const [isBlackout, setIsBlackout] = useState(false);
+  const [navigationHandlers, setNavigationHandlersState] = useState<NavigationHandlers>({});
+  
   const [settings, setSettings] = useState({
     theme: 'dark' as const,
     fontSize: 48,
     bgImage: null as string | null,
   });
 
+  // Canal de comunicação com a janela do projetor
+  const [broadcastChannel, setBroadcastChannel] = useState<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    const channel = new BroadcastChannel('church_presenter_channel');
+    setBroadcastChannel(channel);
+
+    // Escuta requisições de sincronia (quando a janela do projetor abre)
+    channel.onmessage = (event) => {
+      if (event.data.type === 'REQUEST_SYNC') {
+        // Envia o estado atual imediatamente
+        channel.postMessage({
+            type: 'SYNC_STATE',
+            payload: {
+                projection: currentProjection,
+                settings: settings,
+                isBlackout: isBlackout
+            }
+        } as BroadcastMessage);
+      }
+    };
+
+    return () => channel.close();
+  }, [currentProjection, settings, isBlackout]); // Dependências para garantir que o closure tenha o estado atual
+
+  // Função auxiliar para transmitir mudanças
+  const broadcastState = (
+      proj: ProjectionContent, 
+      sett: typeof settings, 
+      blackout: boolean
+  ) => {
+      if (broadcastChannel) {
+          broadcastChannel.postMessage({
+              type: 'SYNC_STATE',
+              payload: {
+                  projection: proj,
+                  settings: sett,
+                  isBlackout: blackout
+              }
+          } as BroadcastMessage);
+      }
+  };
+
   const setProjection = (content: ProjectionContent) => {
     setCurrentProjection(content);
+    // Ao projetar algo novo, remove o blackout automaticamente se estiver ativo
+    let newBlackout = isBlackout;
+    if (isBlackout && content.type !== ProjectionType.IDLE) {
+        setIsBlackout(false);
+        newBlackout = false;
+    }
+    broadcastState(content, settings, newBlackout);
   };
 
   const clearProjection = () => {
     setCurrentProjection(defaultProjection);
+    setIsBlackout(false);
+    setNavigationHandlersState({});
+    broadcastState(defaultProjection, settings, false);
   };
 
   const updateSettings = (newSettings: Partial<typeof settings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+        const updated = { ...prev, ...newSettings };
+        broadcastState(currentProjection, updated, isBlackout);
+        return updated;
+    });
+  };
+
+  const toggleBlackout = (value?: boolean) => {
+    setIsBlackout((prev) => {
+        const newValue = value !== undefined ? value : !prev;
+        broadcastState(currentProjection, settings, newValue);
+        return newValue;
+    });
+  };
+
+  const setNavigationHandlers = (handlers: NavigationHandlers) => {
+    setNavigationHandlersState(handlers);
   };
 
   return (
-    <ProjectionContext.Provider value={{ currentProjection, setProjection, clearProjection, settings, updateSettings }}>
+    <ProjectionContext.Provider value={{ 
+        currentProjection, 
+        setProjection, 
+        clearProjection, 
+        settings, 
+        updateSettings,
+        isBlackout,
+        toggleBlackout,
+        navigationHandlers,
+        setNavigationHandlers
+    }}>
       {children}
     </ProjectionContext.Provider>
   );

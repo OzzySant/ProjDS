@@ -28,3 +28,19 @@ export interface Hymn {
 export interface AppState {
   currentModule: 'bible' | 'hymn' | 'media' | 'settings';
 }
+
+// Tipos para o sistema de Broadcast (Segunda Tela)
+export type BroadcastActionType = 'SYNC_STATE' | 'REQUEST_SYNC';
+
+export interface BroadcastMessage {
+  type: BroadcastActionType;
+  payload?: {
+    projection: ProjectionContent;
+    settings: {
+        theme: 'dark' | 'light';
+        fontSize: number;
+        bgImage: string | null;
+    };
+    isBlackout: boolean;
+  };
+}
